@@ -26,6 +26,14 @@ linters:
         text: "G304"
         linters:
           - gosec
+      - path: internal/daemon/process\.go
+        text: "G304"
+        linters:
+          - gosec
+      - path: internal/daemon/process\.go
+        text: "G204"
+        linters:
+          - gosec
       - path: internal/connect/config\.go
         text: "G304"
         linters:

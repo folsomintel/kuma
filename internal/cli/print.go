@@ -14,7 +14,7 @@ import (
 // PrintRemotes writes a styled remotes table.
 func PrintRemotes(w io.Writer, f *connect.RemotesFile) error {
 	if f == nil || len(f.Remotes) == 0 {
-		fmt.Fprintln(w, MutedStyle.Render("(no remotes)"))
+		_, _ = fmt.Fprintln(w, MutedStyle.Render("(no remotes)"))
 		return nil
 	}
 	names := make([]string, 0, len(f.Remotes))
@@ -38,7 +38,7 @@ func PrintRemotes(w io.Writer, f *connect.RemotesFile) error {
 // PrintAgents writes a styled agents table.
 func PrintAgents(w io.Writer, agents []protocol.AgentInfo) error {
 	if len(agents) == 0 {
-		fmt.Fprintln(w, MutedStyle.Render("(no agents)"))
+		_, _ = fmt.Fprintln(w, MutedStyle.Render("(no agents)"))
 		return nil
 	}
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
@@ -52,7 +52,7 @@ func PrintAgents(w io.Writer, agents []protocol.AgentInfo) error {
 // PrintSessions writes a styled sessions table.
 func PrintSessions(w io.Writer, sessions []protocol.SessionInfo) error {
 	if len(sessions) == 0 {
-		fmt.Fprintln(w, MutedStyle.Render("(no sessions)"))
+		_, _ = fmt.Fprintln(w, MutedStyle.Render("(no sessions)"))
 		return nil
 	}
 	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
@@ -65,24 +65,24 @@ func PrintSessions(w io.Writer, sessions []protocol.SessionInfo) error {
 
 // PrintDaemonStatus writes daemon status fields.
 func PrintDaemonStatus(w io.Writer, running bool, pid int, machineID, relayURL, pidFile, logFile, config string) {
-	fmt.Fprintf(w, "%s %s\n", KeyStyle.Render("status"), StatusBadge(running))
+	_, _ = fmt.Fprintf(w, "%s %s\n", KeyStyle.Render("status"), StatusBadge(running))
 	if pid > 0 {
-		fmt.Fprintf(w, "%s %s\n", KeyStyle.Render("pid"), ValStyle.Render(fmt.Sprintf("%d", pid)))
+		_, _ = fmt.Fprintf(w, "%s %s\n", KeyStyle.Render("pid"), ValStyle.Render(fmt.Sprintf("%d", pid)))
 	}
 	if machineID != "" {
-		fmt.Fprintf(w, "%s %s\n", KeyStyle.Render("machine_id"), ValStyle.Render(machineID))
+		_, _ = fmt.Fprintf(w, "%s %s\n", KeyStyle.Render("machine_id"), ValStyle.Render(machineID))
 	}
 	if relayURL != "" {
-		fmt.Fprintf(w, "%s %s\n", KeyStyle.Render("relay_url"), ValStyle.Render(relayURL))
+		_, _ = fmt.Fprintf(w, "%s %s\n", KeyStyle.Render("relay_url"), ValStyle.Render(relayURL))
 	}
 	if config != "" {
-		fmt.Fprintf(w, "%s %s\n", KeyStyle.Render("config"), MutedStyle.Render(config))
+		_, _ = fmt.Fprintf(w, "%s %s\n", KeyStyle.Render("config"), MutedStyle.Render(config))
 	}
 	if pidFile != "" {
-		fmt.Fprintf(w, "%s %s\n", KeyStyle.Render("pid_file"), MutedStyle.Render(pidFile))
+		_, _ = fmt.Fprintf(w, "%s %s\n", KeyStyle.Render("pid_file"), MutedStyle.Render(pidFile))
 	}
 	if logFile != "" {
-		fmt.Fprintf(w, "%s %s\n", KeyStyle.Render("log_file"), MutedStyle.Render(logFile))
+		_, _ = fmt.Fprintf(w, "%s %s\n", KeyStyle.Render("log_file"), MutedStyle.Render(logFile))
 	}
 }
 
