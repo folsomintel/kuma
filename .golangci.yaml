@@ -1,0 +1,43 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - unconvert
+    - gosec
+
+  settings:
+    gosec:
+      excludes:
+        - G104 # audited intentional error discards on teardown paths
+
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+      - path: internal/daemon/config\.go
+        text: "G304"
+        linters:
+          - gosec
+      - path: internal/connect/config\.go
+        text: "G304"
+        linters:
+          - gosec
+      - path: internal/connect/term\.go
+        text: "G115"
+        linters:
+          - gosec
+      - path: internal/pty/pty\.go
+        text: "G204"
+        linters:
+          - gosec
+
+run:
+  timeout: 5m
