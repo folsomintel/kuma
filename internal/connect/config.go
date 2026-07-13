@@ -213,7 +213,7 @@ func ResolveCredentials(path, remoteName, machineID, key, relayURL, joinToken st
 	}
 	if err := cred.Validate(); err != nil {
 		if name == "" && machineID == "" && key == "" && relayURL == "" && joinToken == "" {
-			return nil, fmt.Errorf("no remote configured; pass credentials or run: kuma-connect remotes add <name>")
+			return nil, fmt.Errorf("no remote configured; pass credentials or run: kuma remote add <name>")
 		}
 		return nil, err
 	}

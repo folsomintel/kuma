@@ -51,7 +51,7 @@ func main() {
 	cfg, err := daemon.LoadConfig(*configPath, *machineID, *key, *relayURL, *joinToken)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
-		fmt.Fprintf(os.Stderr, "hint: run `just init` or `go run ./cmd/kumad init` to create a local config\n")
+		fmt.Fprintf(os.Stderr, "hint: run `kuma up` or `go run ./cmd/kumad init` to create a local config\n")
 		os.Exit(1)
 	}
 
@@ -92,7 +92,7 @@ func runInit(configPath, relayURL, joinToken, authSecret string, force bool) err
 	fmt.Println("warning: treat key= as a secret; avoid shell history / logs")
 	fmt.Printf("key=%s\n", cfg.Key)
 	fmt.Printf("join_token=%s\n", cfg.JoinToken)
-	fmt.Println("next: start the relay (`just relay`), then run `just kumad`")
+	fmt.Println("next: start the relay (`just relay`), then run `kuma up` or `just kumad`")
 	return nil
 }
 

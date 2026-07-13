@@ -18,16 +18,19 @@ default:
 # Build all binaries into bin/
 build:
 	mkdir -p bin
+	go build -o bin/kuma ./cmd/kuma
 	go build -o bin/kumad ./cmd/kumad
 	go build -o bin/kuma-relay ./cmd/kuma-relay
 	go build -o bin/kuma-api ./cmd/kuma-api
-	go build -o bin/kuma-connect ./cmd/kuma-connect
 
-# Attach to a remote kumad (interactive)
-# Usage: just connect -agent claude
-#    or: just connect remotes list
-connect *args:
-	go run ./cmd/kuma-connect {{args}}
+# Run the kuma CLI
+# Usage: just kuma run
+#    or: just kuma remote list
+#    or: just kuma keys
+kuma *args:
+	KUMA_RELAY_AUTH_SECRET={{relay_auth_secret}} \
+	KUMA_RELAY_URL={{relay_url}} \
+	go run ./cmd/kuma {{args}}
 
 # Run the opaque WebSocket relay
 relay:
@@ -39,7 +42,7 @@ init:
 	KUMA_RELAY_AUTH_SECRET={{relay_auth_secret}} \
 	go run ./cmd/kumad -relay-url {{relay_url}} -auth-secret {{relay_auth_secret}} init
 
-# Mint a client join token for an existing machine_id (for kuma-connect)
+# Mint a client join token for an existing machine_id (for kuma remote add)
 # Usage: just mint-client <machine_id>
 mint-client machine_id:
 	KUMA_RELAY_AUTH_SECRET={{relay_auth_secret}} \

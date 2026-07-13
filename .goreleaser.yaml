@@ -3,9 +3,9 @@ version: 2
 project_name: kuma
 
 builds:
-  - id: kumad
-    main: ./cmd/kumad
-    binary: kumad
+  - id: kuma
+    main: ./cmd/kuma
+    binary: kuma
     env:
       - CGO_ENABLED=0
     goos:
@@ -17,29 +17,12 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w
-
-  - id: kuma-connect
-    main: ./cmd/kuma-connect
-    binary: kuma-connect
-    env:
-      - CGO_ENABLED=0
-    goos:
-      - linux
-      - darwin
-    goarch:
-      - amd64
-      - arm64
-    flags:
-      - -trimpath
-    ldflags:
-      - -s -w
+      - -s -w -X main.version={{.Version}}
 
 archives:
   - id: binaries
     ids:
-      - kumad
-      - kuma-connect
+      - kuma
     formats:
       - binary
     name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}"
@@ -66,5 +49,4 @@ release:
 
     | Asset | Platform |
     | --- | --- |
-    | `kumad` | Linux / macOS (amd64, arm64) |
-    | `kuma-connect` | Linux / macOS (amd64, arm64) |
+    | `kuma` | Linux / macOS (amd64, arm64) |
