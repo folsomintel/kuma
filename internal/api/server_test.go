@@ -8,10 +8,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"kuma/internal/api"
-	"kuma/internal/fuse"
-	"kuma/internal/jointoken"
-	"kuma/internal/store"
+	"github.com/folsomintel/kuma/internal/api"
+	"github.com/folsomintel/kuma/internal/fuse"
+	"github.com/folsomintel/kuma/internal/jointoken"
+	"github.com/folsomintel/kuma/internal/store"
 )
 
 const testRelaySecret = "api-test-relay-secret"

@@ -12,8 +12,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"kuma/internal/crypto"
-	"kuma/internal/protocol"
+	"github.com/folsomintel/kuma/internal/crypto"
+	"github.com/folsomintel/kuma/internal/protocol"
 )
 
 func TestConcurrentStartSessionRespectsMaxSessions(t *testing.T) {

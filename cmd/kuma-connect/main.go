@@ -12,8 +12,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"kuma/internal/connect"
-	"kuma/internal/protocol"
+	"github.com/folsomintel/kuma/internal/connect"
+	"github.com/folsomintel/kuma/internal/protocol"
 )
 
 func main() {

@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"kuma/internal/api"
-	"kuma/internal/fuse"
-	"kuma/internal/store"
+	"github.com/folsomintel/kuma/internal/api"
+	"github.com/folsomintel/kuma/internal/fuse"
+	"github.com/folsomintel/kuma/internal/store"
 )
 
 func main() {

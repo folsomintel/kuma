@@ -11,8 +11,8 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"kuma/internal/jointoken"
-	"kuma/internal/wsutil"
+	"github.com/folsomintel/kuma/internal/jointoken"
+	"github.com/folsomintel/kuma/internal/wsutil"
 )
 
 const (

@@ -15,11 +15,11 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"kuma/internal/agents"
-	"kuma/internal/crypto"
-	"kuma/internal/protocol"
-	"kuma/internal/pty"
-	"kuma/internal/wsutil"
+	"github.com/folsomintel/kuma/internal/agents"
+	"github.com/folsomintel/kuma/internal/crypto"
+	"github.com/folsomintel/kuma/internal/protocol"
+	"github.com/folsomintel/kuma/internal/pty"
+	"github.com/folsomintel/kuma/internal/wsutil"
 )
 
 // Daemon connects to the relay and manages local agent PTY sessions.

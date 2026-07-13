@@ -12,9 +12,9 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"kuma/internal/crypto"
-	"kuma/internal/protocol"
-	"kuma/internal/wsutil"
+	"github.com/folsomintel/kuma/internal/crypto"
+	"github.com/folsomintel/kuma/internal/protocol"
+	"github.com/folsomintel/kuma/internal/wsutil"
 )
 
 // Client is an encrypted protocol client attached to the relay as role=client.

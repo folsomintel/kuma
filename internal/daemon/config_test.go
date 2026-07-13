@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"kuma/internal/crypto"
+	"github.com/folsomintel/kuma/internal/crypto"
 )
 
 func TestLoadConfigOverrides(t *testing.T) {

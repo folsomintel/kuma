@@ -11,7 +11,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"kuma/internal/jointoken"
+	"github.com/folsomintel/kuma/internal/jointoken"
 )
 
 const testSecret = "relay-test-secret"

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"kuma/internal/pty"
+	"github.com/folsomintel/kuma/internal/pty"
 )
 
 func TestStartWriteReadClose(t *testing.T) {

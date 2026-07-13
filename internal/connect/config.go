@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"kuma/internal/crypto"
+	"github.com/folsomintel/kuma/internal/crypto"
 )
 
 // Remote is a saved kumad endpoint the client can dial.

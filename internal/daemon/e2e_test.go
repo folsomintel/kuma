@@ -12,11 +12,11 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"kuma/internal/crypto"
-	"kuma/internal/daemon"
-	"kuma/internal/jointoken"
-	"kuma/internal/protocol"
-	"kuma/internal/relay"
+	"github.com/folsomintel/kuma/internal/crypto"
+	"github.com/folsomintel/kuma/internal/daemon"
+	"github.com/folsomintel/kuma/internal/jointoken"
+	"github.com/folsomintel/kuma/internal/protocol"
+	"github.com/folsomintel/kuma/internal/relay"
 )
 
 const e2eSecret = "e2e-relay-secret"

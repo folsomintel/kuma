@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"kuma/internal/connect"
-	"kuma/internal/crypto"
-	"kuma/internal/daemon"
-	"kuma/internal/jointoken"
-	"kuma/internal/protocol"
-	"kuma/internal/relay"
+	"github.com/folsomintel/kuma/internal/connect"
+	"github.com/folsomintel/kuma/internal/crypto"
+	"github.com/folsomintel/kuma/internal/daemon"
+	"github.com/folsomintel/kuma/internal/jointoken"
+	"github.com/folsomintel/kuma/internal/protocol"
+	"github.com/folsomintel/kuma/internal/relay"
 )
 
 const connectE2ESecret = "connect-e2e-secret"

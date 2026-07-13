@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"kuma/internal/crypto"
-	"kuma/internal/fuse"
-	"kuma/internal/jointoken"
-	"kuma/internal/store"
+	"github.com/folsomintel/kuma/internal/crypto"
+	"github.com/folsomintel/kuma/internal/fuse"
+	"github.com/folsomintel/kuma/internal/jointoken"
+	"github.com/folsomintel/kuma/internal/store"
 )
 
 // Server is the kuma control-plane HTTP API.

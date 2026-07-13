@@ -10,8 +10,8 @@ import (
 	"strings"
 	"syscall"
 
-	"kuma/internal/daemon"
-	"kuma/internal/jointoken"
+	"github.com/folsomintel/kuma/internal/daemon"
+	"github.com/folsomintel/kuma/internal/jointoken"
 )
 
 func main() {

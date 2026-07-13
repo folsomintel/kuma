@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"kuma/internal/crypto"
-	"kuma/internal/jointoken"
+	"github.com/folsomintel/kuma/internal/crypto"
+	"github.com/folsomintel/kuma/internal/jointoken"
 )
 
 func mintDaemonJoinToken(secret, machineID string) (string, error) {

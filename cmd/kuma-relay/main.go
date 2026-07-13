@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"kuma/internal/relay"
+	"github.com/folsomintel/kuma/internal/relay"
 )
 
 func main() {

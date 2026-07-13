@@ -1,4 +1,4 @@
-module kuma
+module github.com/folsomintel/kuma
 
 go 1.26.0
 

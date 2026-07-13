@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"kuma/internal/store"
+	"github.com/folsomintel/kuma/internal/store"
 )
 
 func TestDeviceCRUD(t *testing.T) {

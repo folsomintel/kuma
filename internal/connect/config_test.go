@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"kuma/internal/connect"
-	"kuma/internal/crypto"
+	"github.com/folsomintel/kuma/internal/connect"
+	"github.com/folsomintel/kuma/internal/crypto"
 )
 
 func TestRemotesAddListRemove(t *testing.T) {

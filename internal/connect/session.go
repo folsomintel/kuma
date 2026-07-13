@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"kuma/internal/protocol"
+	"github.com/folsomintel/kuma/internal/protocol"
 )
 
 const waitReadyTimeout = 30 * time.Second

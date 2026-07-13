@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"kuma/internal/agents"
+	"github.com/folsomintel/kuma/internal/agents"
 )
 
 func TestAllowed(t *testing.T) {
