@@ -31,6 +31,26 @@ checksum:
   name_template: checksums.txt
   algorithm: sha256
 
+brews:
+  - name: kuma
+    ids:
+      - binaries
+    repository:
+      owner: folsomintel
+      name: homebrew-kuma
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/folsomintel/kuma
+    description: CLI for controlling kuma daemons, remotes, and agent sessions
+    license: Apache-2.0
+    skip_upload: auto
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "Brew formula update for kuma {{ .Tag }}"
+    test: |
+      system "#{bin}/kuma", "-V"
+
 changelog:
   sort: asc
   filters:
@@ -45,6 +65,12 @@ release:
   draft: false
   prerelease: auto
   footer: |
+    ## Install
+
+    ```bash
+    brew install folsomintel/kuma/kuma
+    ```
+
     ## Downloads
 
     | Asset | Platform |
