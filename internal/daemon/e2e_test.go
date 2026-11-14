@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/folsomintel/kuma/internal/jointoken"
 	"github.com/folsomintel/kuma/internal/protocol"
 	"github.com/folsomintel/kuma/internal/relay"
+	"github.com/folsomintel/kuma/internal/tunnel"
 )
 
 const e2eSecret = "e2e-relay-secret"
@@ -105,15 +105,17 @@ func TestEndToEndEncryptedSession(t *testing.T) {
 				time.Sleep(50 * time.Millisecond)
 				continue
 			}
-			sess = &clientSession{conn: client, key: key, aad: []byte(machineID)}
+			sess = &clientSession{conn: client}
 		}
 
-		var err error
-		listResp, err = sess.rpc(t, protocol.Message{
-			Type:   protocol.TypeRequest,
-			ID:     "1",
-			Method: protocol.MethodListAgents,
-		})
+		err := sess.handshake(key, machineID)
+		if err == nil {
+			listResp, err = sess.rpc(t, protocol.Message{
+				Type:   protocol.TypeRequest,
+				ID:     "1",
+				Method: protocol.MethodListAgents,
+			})
+		}
 		if err == nil && listResp.OK != nil && *listResp.OK {
 			break
 		}
@@ -195,12 +197,37 @@ func TestEndToEndEncryptedSession(t *testing.T) {
 	}
 }
 
+// clientSession is a hand-rolled client speaking the tunnel protocol over a
+// raw WebSocket, so the test sees exactly what crosses the relay.
 type clientSession struct {
 	conn    *websocket.Conn
-	key     []byte
-	aad     []byte
-	sendSeq atomic.Uint64
-	recvSeq uint64
+	channel *tunnel.Channel
+	hello   []byte // the hello frame as sent, for replay tests
+}
+
+// handshake sends one hello and waits for the daemon's ack.
+func (s *clientSession) handshake(key []byte, machineID string) error {
+	initiator, err := tunnel.NewInitiator(key, machineID)
+	if err != nil {
+		return err
+	}
+	s.hello = initiator.Hello()
+	_ = s.conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
+	if err := s.conn.WriteMessage(websocket.BinaryMessage, s.hello); err != nil {
+		return err
+	}
+	_ = s.conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	for {
+		_, frame, err := s.conn.ReadMessage()
+		if err != nil {
+			return err
+		}
+		if tunnel.FrameKind(frame) != tunnel.KindAck {
+			continue
+		}
+		s.channel, err = initiator.Finish(frame)
+		return err
+	}
 }
 
 func (s *clientSession) rpc(t *testing.T, req protocol.Message) (protocol.Message, error) {
@@ -223,12 +250,7 @@ func (s *clientSession) rpc(t *testing.T, req protocol.Message) (protocol.Messag
 
 func (s *clientSession) send(t *testing.T, msg protocol.Message) error {
 	t.Helper()
-	msg.Seq = s.sendSeq.Add(1)
-	plain, err := protocol.Encode(msg)
-	if err != nil {
-		return err
-	}
-	frame, err := crypto.Encrypt(s.key, plain, s.aad)
+	frame, err := s.channel.Seal(msg)
 	if err != nil {
 		return err
 	}
@@ -249,19 +271,10 @@ func (s *clientSession) recv(t *testing.T, timeout time.Duration) (protocol.Mess
 	if strings.Contains(string(frame), `"type"`) {
 		t.Fatalf("relay frame looked like plaintext JSON")
 	}
-	plain, err := crypto.Decrypt(s.key, frame, s.aad)
+	msg, err := s.channel.Open(frame)
 	if err != nil {
-		return protocol.Message{}, err
+		t.Fatalf("open frame: %v", err)
 	}
-	msg, err := protocol.Decode(plain)
-	if err != nil {
-		return protocol.Message{}, err
-	}
-	next, ok := protocol.AcceptSeq(s.recvSeq, msg.Seq)
-	if !ok {
-		t.Fatalf("reject seq %d (last %d)", msg.Seq, s.recvSeq)
-	}
-	s.recvSeq = next
 	return msg, nil
 }
 

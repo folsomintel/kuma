@@ -14,6 +14,7 @@ import (
 
 	"github.com/folsomintel/kuma/internal/crypto"
 	"github.com/folsomintel/kuma/internal/protocol"
+	"github.com/folsomintel/kuma/internal/tunnel"
 )
 
 func TestConcurrentStartSessionRespectsMaxSessions(t *testing.T) {
@@ -75,6 +76,15 @@ func TestConcurrentStartSessionRespectsMaxSessions(t *testing.T) {
 	d.setConn(conn)
 	t.Cleanup(d.closeAllSessions)
 
+	// Attach a client tunnel so replies can be sealed.
+	initiator, err := tunnel.NewInitiator(key, cfg.MachineID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.handleHello(initiator.Hello()); err != nil {
+		t.Fatalf("handleHello: %v", err)
+	}
+
 	params, err := protocol.EncodeParams(protocol.StartSessionParams{Agent: "claude"})
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +98,6 @@ func TestConcurrentStartSessionRespectsMaxSessions(t *testing.T) {
 			defer wg.Done()
 			msg := protocol.Message{
 				Type:   protocol.TypeRequest,
-				Seq:    1, // unused by handleRequest
 				ID:     strconv.Itoa(i),
 				Method: protocol.MethodStartSession,
 				Params: params,

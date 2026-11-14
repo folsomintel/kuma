@@ -47,23 +47,6 @@ func TestValidateRejectsBadMessages(t *testing.T) {
 	}
 }
 
-func TestAcceptSeq(t *testing.T) {
-	next, ok := AcceptSeq(0, 1)
-	if !ok || next != 1 {
-		t.Fatalf("got %d %v", next, ok)
-	}
-	if _, ok := AcceptSeq(5, 5); ok {
-		t.Fatal("duplicate should fail")
-	}
-	if _, ok := AcceptSeq(5, 5+SeqWindow+1); ok {
-		t.Fatal("beyond window should fail")
-	}
-	next, ok = AcceptSeq(5, 10)
-	if !ok || next != 10 {
-		t.Fatalf("got %d %v", next, ok)
-	}
-}
-
 func TestStartSessionParamsRoundTrip(t *testing.T) {
 	params := StartSessionParams{Agent: "claude", CWD: "/tmp"}
 	encoded, err := EncodeParams(params)

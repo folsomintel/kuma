@@ -5,9 +5,6 @@ import (
 	"fmt"
 )
 
-// SeqWindow is the maximum accepted gap between consecutive inbound sequences.
-const SeqWindow = 32
-
 type Type string
 
 const (
@@ -30,7 +27,8 @@ const (
 )
 
 // Message is the plaintext protocol unit. Entire messages are encrypted
-// before being sent as WebSocket binary frames.
+// before being sent as WebSocket binary frames. Seq is assigned and checked
+// by package tunnel.
 type Message struct {
 	Type      Type            `json:"type"`
 	Seq       uint64          `json:"seq"`
@@ -158,21 +156,6 @@ func validateMethod(method Method) error {
 	default:
 		return fmt.Errorf("unknown method %q", method)
 	}
-}
-
-// AcceptSeq reports whether seq is acceptable given the last accepted recvSeq
-// using a sliding window of SeqWindow. On success, returns the updated recvSeq.
-func AcceptSeq(recvSeq, seq uint64) (uint64, bool) {
-	if seq == 0 {
-		return recvSeq, false
-	}
-	if seq <= recvSeq {
-		return recvSeq, false
-	}
-	if seq > recvSeq+SeqWindow {
-		return recvSeq, false
-	}
-	return seq, true
 }
 
 func BoolPtr(v bool) *bool { return &v }
