@@ -10,31 +10,32 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
 
 	"github.com/folsomintel/kuma/internal/agents"
-	"github.com/folsomintel/kuma/internal/crypto"
 	"github.com/folsomintel/kuma/internal/protocol"
 	"github.com/folsomintel/kuma/internal/pty"
+	"github.com/folsomintel/kuma/internal/tunnel"
 	"github.com/folsomintel/kuma/internal/wsutil"
 )
 
 // Daemon connects to the relay and manages local agent PTY sessions.
 type Daemon struct {
-	cfg    *Config
-	log    *slog.Logger
-	aad    []byte
-	cipher *crypto.Cipher
+	cfg *Config
+	log *slog.Logger
 
+	// responder answers client handshakes. Only the relay read loop uses it.
+	responder *tunnel.Responder
+
+	// connMu guards conn and channel, and serializes every write so frames
+	// reach the wire in the order their sequence numbers were assigned.
 	connMu sync.Mutex
 	conn   *websocket.Conn
-
-	sendSeq atomic.Uint64
-	recvMu  sync.Mutex
-	recvSeq uint64
+	// channel is the tunnel to the most recent client. It outlives relay
+	// reconnects and is replaced only when a client sends a new hello.
+	channel *tunnel.Channel
 
 	sessionsMu sync.Mutex
 	sessions   map[string]*ptySession
@@ -55,16 +56,15 @@ func New(cfg *Config, log *slog.Logger) (*Daemon, error) {
 	if log == nil {
 		log = slog.Default()
 	}
-	ciph, err := crypto.NewCipher(cfg.KeyBytes())
+	responder, err := tunnel.NewResponder(cfg.KeyBytes(), cfg.MachineID)
 	if err != nil {
-		return nil, fmt.Errorf("cipher: %w", err)
+		return nil, fmt.Errorf("tunnel: %w", err)
 	}
 	return &Daemon{
-		cfg:      cfg,
-		log:      log,
-		aad:      []byte(cfg.MachineID),
-		cipher:   ciph,
-		sessions: make(map[string]*ptySession),
+		cfg:       cfg,
+		log:       log,
+		responder: responder,
+		sessions:  make(map[string]*ptySession),
 	}, nil
 }
 
@@ -102,7 +102,6 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 		backoff = d.cfg.MinBackoff
 		d.log.Info("connected to relay")
-		d.resetSeq()
 		d.setConn(conn)
 		err = d.serveConn(ctx, conn)
 		d.setConn(nil)
@@ -119,13 +118,6 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 		backoff = minDuration(backoff*2, d.cfg.MaxBackoff)
 	}
-}
-
-func (d *Daemon) resetSeq() {
-	d.sendSeq.Store(0)
-	d.recvMu.Lock()
-	d.recvSeq = 0
-	d.recvMu.Unlock()
 }
 
 func (d *Daemon) serveConn(ctx context.Context, conn *websocket.Conn) error {
@@ -186,23 +178,23 @@ func (d *Daemon) pingLoop(ctx context.Context, conn *websocket.Conn) {
 }
 
 func (d *Daemon) handleFrame(frame []byte) error {
-	plaintext, err := d.cipher.Decrypt(frame, d.aad)
-	if err != nil {
-		return fmt.Errorf("decrypt: %w", err)
-	}
-	msg, err := protocol.Decode(plaintext)
-	if err != nil {
-		return err
+	switch kind := tunnel.FrameKind(frame); kind {
+	case tunnel.KindHello:
+		return d.handleHello(frame)
+	case tunnel.KindData:
+	default:
+		return fmt.Errorf("unexpected frame kind %d", kind)
 	}
 
-	d.recvMu.Lock()
-	next, ok := protocol.AcceptSeq(d.recvSeq, msg.Seq)
-	if ok {
-		d.recvSeq = next
+	d.connMu.Lock()
+	channel := d.channel
+	d.connMu.Unlock()
+	if channel == nil {
+		return fmt.Errorf("data frame before handshake")
 	}
-	d.recvMu.Unlock()
-	if !ok {
-		return fmt.Errorf("reject seq %d", msg.Seq)
+	msg, err := channel.Open(frame)
+	if err != nil {
+		return fmt.Errorf("open frame: %w", err)
 	}
 
 	switch msg.Type {
@@ -215,6 +207,25 @@ func (d *Daemon) handleFrame(frame []byte) error {
 	default:
 		return fmt.Errorf("unsupported inbound type %q", msg.Type)
 	}
+}
+
+// handleHello answers a client handshake and makes its channel the current
+// one. The swap and the ack share one critical section so nothing sealed for
+// the new channel can reach the client ahead of the ack.
+func (d *Daemon) handleHello(frame []byte) error {
+	channel, ack, err := d.responder.Accept(frame)
+	if err != nil {
+		return fmt.Errorf("handshake: %w", err)
+	}
+
+	d.connMu.Lock()
+	defer d.connMu.Unlock()
+	d.channel = channel
+	if d.conn == nil {
+		return fmt.Errorf("not connected")
+	}
+	_ = d.conn.SetWriteDeadline(time.Now().Add(wsutil.WriteWait))
+	return d.conn.WriteMessage(websocket.BinaryMessage, ack)
 }
 
 func (d *Daemon) handleRequest(msg protocol.Message) error {
@@ -448,20 +459,17 @@ func (d *Daemon) closeAllSessions() {
 }
 
 func (d *Daemon) send(msg protocol.Message) error {
-	msg.Seq = d.sendSeq.Add(1)
-	plaintext, err := protocol.Encode(msg)
-	if err != nil {
-		return err
-	}
-	frame, err := d.cipher.Encrypt(plaintext, d.aad)
-	if err != nil {
-		return err
-	}
-
 	d.connMu.Lock()
 	defer d.connMu.Unlock()
 	if d.conn == nil {
 		return fmt.Errorf("not connected")
+	}
+	if d.channel == nil {
+		return fmt.Errorf("no client attached")
+	}
+	frame, err := d.channel.Seal(msg)
+	if err != nil {
+		return err
 	}
 	_ = d.conn.SetWriteDeadline(time.Now().Add(wsutil.WriteWait))
 	return d.conn.WriteMessage(websocket.BinaryMessage, frame)

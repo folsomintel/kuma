@@ -4,31 +4,38 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/url"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
 
-	"github.com/folsomintel/kuma/internal/crypto"
 	"github.com/folsomintel/kuma/internal/protocol"
+	"github.com/folsomintel/kuma/internal/tunnel"
 	"github.com/folsomintel/kuma/internal/wsutil"
 )
 
+// helloRetry is how often the hello is resent while waiting for the daemon.
+// The relay drops frames when the daemon is not attached, so one send is not
+// enough.
+const helloRetry = 250 * time.Millisecond
+
 // Client is an encrypted protocol client attached to the relay as role=client.
 type Client struct {
-	cred   *Credentials
-	cipher *crypto.Cipher
-	aad    []byte
+	cred      *Credentials
+	initiator *tunnel.Initiator
 
+	// connMu guards conn and channel, and serializes every write so frames
+	// reach the wire in the order their sequence numbers were assigned.
 	connMu sync.Mutex
 	conn   *websocket.Conn
+	// channel is nil until the daemon acknowledges the handshake.
+	channel *tunnel.Channel
 
-	sendSeq atomic.Uint64
-	recvMu  sync.Mutex
-	recvSeq uint64
+	ready chan struct{} // closed once channel is set
+	done  chan struct{} // closed when the read loop exits
 
 	pendingMu sync.Mutex
 	pending   map[string]chan protocol.Message
@@ -36,7 +43,8 @@ type Client struct {
 	inbox chan protocol.Message
 }
 
-// Dial connects to the relay and starts the read loop.
+// Dial connects to the relay and starts the read loop. Call WaitReady before
+// anything else: no request can be sent until the tunnel is established.
 func Dial(ctx context.Context, cred *Credentials) (*Client, error) {
 	if cred == nil {
 		return nil, fmt.Errorf("credentials are required")
@@ -44,7 +52,7 @@ func Dial(ctx context.Context, cred *Credentials) (*Client, error) {
 	if err := cred.Validate(); err != nil {
 		return nil, err
 	}
-	ciph, err := crypto.NewCipher(cred.KeyBytes())
+	initiator, err := tunnel.NewInitiator(cred.KeyBytes(), cred.MachineID)
 	if err != nil {
 		return nil, err
 	}
@@ -71,12 +79,13 @@ func Dial(ctx context.Context, cred *Credentials) (*Client, error) {
 	})
 
 	c := &Client{
-		cred:    cred,
-		cipher:  ciph,
-		aad:     []byte(cred.MachineID),
-		conn:    conn,
-		pending: make(map[string]chan protocol.Message),
-		inbox:   make(chan protocol.Message, 64),
+		cred:      cred,
+		initiator: initiator,
+		conn:      conn,
+		ready:     make(chan struct{}),
+		done:      make(chan struct{}),
+		pending:   make(map[string]chan protocol.Message),
+		inbox:     make(chan protocol.Message, 64),
 	}
 	go c.readLoop()
 	go c.pingLoop(ctx)
@@ -95,25 +104,36 @@ func (c *Client) Close() error {
 	return err
 }
 
-// WaitReady polls list_agents until the daemon responds or ctx is done.
+// WaitReady establishes the tunnel with the daemon, if it is not up already,
+// and returns the daemon's agent list.
 func (c *Client) WaitReady(ctx context.Context) (protocol.ListAgentsResult, error) {
-	var lastErr error
+	if err := c.handshake(ctx); err != nil {
+		return protocol.ListAgentsResult{}, fmt.Errorf("daemon not ready: %w", err)
+	}
+	return c.ListAgents(ctx)
+}
+
+// handshake resends the hello until the daemon acknowledges it.
+func (c *Client) handshake(ctx context.Context) error {
+	ticker := time.NewTicker(helloRetry)
+	defer ticker.Stop()
 	for {
-		if err := ctx.Err(); err != nil {
-			if lastErr != nil {
-				return protocol.ListAgentsResult{}, fmt.Errorf("daemon not ready: %w (last: %v)", err, lastErr)
-			}
-			return protocol.ListAgentsResult{}, err
-		}
-		res, err := c.ListAgents(ctx)
-		if err == nil {
-			return res, nil
-		}
-		lastErr = err
 		select {
+		case <-c.ready:
+			return nil
+		default:
+		}
+		if err := c.writeFrame(c.initiator.Hello()); err != nil {
+			return err
+		}
+		select {
+		case <-c.ready:
+			return nil
+		case <-c.done:
+			return errConnectionClosed
 		case <-ctx.Done():
-			return protocol.ListAgentsResult{}, fmt.Errorf("daemon not ready: %w (last: %v)", ctx.Err(), lastErr)
-		case <-time.After(100 * time.Millisecond):
+			return ctx.Err()
+		case <-ticker.C:
 		}
 	}
 }
@@ -198,7 +218,7 @@ func (c *Client) Recv(ctx context.Context) (protocol.Message, error) {
 		return protocol.Message{}, ctx.Err()
 	case msg, ok := <-c.inbox:
 		if !ok {
-			return protocol.Message{}, fmt.Errorf("connection closed")
+			return protocol.Message{}, errConnectionClosed
 		}
 		return msg, nil
 	}
@@ -232,6 +252,8 @@ func (c *Client) rpc(ctx context.Context, method protocol.Method, params []byte)
 	select {
 	case <-ctx.Done():
 		return protocol.Message{}, ctx.Err()
+	case <-c.done:
+		return protocol.Message{}, errConnectionClosed
 	case msg := <-ch:
 		if msg.OK == nil || !*msg.OK {
 			errMsg := msg.Error
@@ -245,25 +267,52 @@ func (c *Client) rpc(ctx context.Context, method protocol.Method, params []byte)
 }
 
 func (c *Client) send(msg protocol.Message) error {
-	msg.Seq = c.sendSeq.Add(1)
-	plain, err := protocol.Encode(msg)
-	if err != nil {
-		return err
-	}
-	frame, err := c.cipher.Encrypt(plain, c.aad)
-	if err != nil {
-		return err
-	}
 	c.connMu.Lock()
 	defer c.connMu.Unlock()
 	if c.conn == nil {
-		return fmt.Errorf("not connected")
+		return errNotConnected
+	}
+	if c.channel == nil {
+		return fmt.Errorf("tunnel not established; call WaitReady first")
+	}
+	frame, err := c.channel.Seal(msg)
+	if err != nil {
+		return err
 	}
 	_ = c.conn.SetWriteDeadline(time.Now().Add(wsutil.WriteWait))
 	return c.conn.WriteMessage(websocket.BinaryMessage, frame)
 }
 
+// writeFrame sends an already-built frame (the handshake hello).
+func (c *Client) writeFrame(frame []byte) error {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+	if c.conn == nil {
+		return errNotConnected
+	}
+	_ = c.conn.SetWriteDeadline(time.Now().Add(wsutil.WriteWait))
+	return c.conn.WriteMessage(websocket.BinaryMessage, frame)
+}
+
+// finishHandshake installs the channel from the daemon's ack. Later acks,
+// which answer resent hellos and carry the same keys, are ignored, as is
+// anything that does not answer this client's hello.
+func (c *Client) finishHandshake(ack []byte) {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+	if c.channel != nil {
+		return
+	}
+	channel, err := c.initiator.Finish(ack)
+	if err != nil {
+		return
+	}
+	c.channel = channel
+	close(c.ready)
+}
+
 func (c *Client) readLoop() {
+	defer close(c.done)
 	defer close(c.inbox)
 	for {
 		c.connMu.Lock()
@@ -279,21 +328,22 @@ func (c *Client) readLoop() {
 		if msgType != websocket.BinaryMessage {
 			continue
 		}
-		plain, err := c.cipher.Decrypt(payload, c.aad)
-		if err != nil {
+		switch tunnel.FrameKind(payload) {
+		case tunnel.KindAck:
+			c.finishHandshake(payload)
+			continue
+		case tunnel.KindData:
+		default:
 			continue
 		}
-		msg, err := protocol.Decode(plain)
-		if err != nil {
+		c.connMu.Lock()
+		channel := c.channel
+		c.connMu.Unlock()
+		if channel == nil {
 			continue
 		}
-		c.recvMu.Lock()
-		next, ok := protocol.AcceptSeq(c.recvSeq, msg.Seq)
-		if ok {
-			c.recvSeq = next
-		}
-		c.recvMu.Unlock()
-		if !ok {
+		msg, err := channel.Open(payload)
+		if err != nil {
 			continue
 		}
 
@@ -335,6 +385,11 @@ func (c *Client) pingLoop(ctx context.Context) {
 		}
 	}
 }
+
+var (
+	errNotConnected     = errors.New("not connected")
+	errConnectionClosed = errors.New("connection closed")
+)
 
 func newRequestID() (string, error) {
 	var b [8]byte
